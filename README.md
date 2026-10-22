@@ -1,6 +1,6 @@
 # raspberry-usb-emulator
 
-USB Raw Gadget emulator for Raspberry Pi.
+USB Raw Gadget emulator for Raspberry Pi 4.
 
 ```bash
 make
