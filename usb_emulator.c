@@ -46,6 +46,7 @@ static void fail(const char *fmt, ...) {
     va_end(ap); exit(1);
 }
 static void on_signal(int s) { (void)s; g_running = 0; }
+static uint16_t read_le16(const uint8_t *p) { return (uint16_t)(p[0] | (p[1] << 8)); }
 
 static void load_file(const char *path, struct binary_file *f) {
     FILE *fp = fopen(path, "rb");
@@ -53,8 +54,31 @@ static void load_file(const char *path, struct binary_file *f) {
     f->length = fread(f->data, 1, sizeof(f->data), fp);
     if (ferror(fp)) fail("cannot read %s", path);
     fclose(fp);
-    if (f->length < 2 || f->data[0] != f->length)
-        fail("invalid descriptor file %s", path);
+    if (f->length < 2) fail("descriptor file %s too short", path);
+    uint8_t bLength = f->data[0], type = f->data[1];
+    if (bLength < 2 || bLength > f->length)
+        fail("invalid bLength in %s: %u, size=%zu", path, bLength, f->length);
+    switch (type) {
+        case USB_DT_DEVICE:
+        case USB_DT_DEVICE_QUALIFIER:
+        case USB_DT_STRING:
+            if (bLength != f->length)
+                fail("length mismatch in %s: bLength=%u size=%zu", path, bLength, f->length);
+            break;
+        case USB_DT_CONFIG:
+        case USB_DT_OTHER_SPEED_CONFIG:
+        case USB_DT_BOS: {
+            if (f->length < 4) fail("composite descriptor %s too short", path);
+            uint16_t total = read_le16(&f->data[2]);
+            if (total != f->length)
+                fail("wTotalLength mismatch in %s: %u vs %zu", path, total, f->length);
+            break;
+        }
+        case HID_DT_REPORT:
+            break;
+        default:
+            break;
+    }
 }
 
 static int ioctl_raw(int fd, unsigned long req, void *arg) {
@@ -227,8 +251,7 @@ int main(int argc, char **argv) {
                 if (event->length >= 8)
                     printf("control: type=0x%02X request=0x%02X value=0x%04X length=%u\n",
                         event->data[0], event->data[1],
-                        event->data[2] | (event->data[3] << 8),
-                        event->data[6] | (event->data[7] << 8));
+                        read_le16(&event->data[2]), read_le16(&event->data[6]));
                 handle_control(fd, event);
                 break;
             case USB_RAW_EVENT_SUSPEND: printf("suspended\n"); break;

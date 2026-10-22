@@ -5,7 +5,7 @@ USB Raw Gadget emulator for Raspberry Pi.
 ```bash
 make
 sudo modprobe raw_gadget
-sudo ./usb_emulator --def device.def --driver dwc2 --udc 20980000.usb --speed full
+sudo ./usb_emulator --def device.def --driver dwc2 --udc fe980000.usb --speed full
 ```
 
 Create device.def:
